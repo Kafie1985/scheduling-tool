@@ -12,12 +12,16 @@ export function Dashboard({
   bookings,
   error,
   today,
+  squareConnected,
+  squareBanner,
 }: {
   configured: boolean;
   customers: Customer[];
   bookings: Booking[];
   error: string | null;
   today: string;
+  squareConnected: boolean;
+  squareBanner: { tone: "ok" | "warn"; message: string } | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -36,18 +40,42 @@ export function Dashboard({
               <h1 className="text-2xl font-semibold tracking-tight text-stone-950">Schedule</h1>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900"
-          >
-            Add booking
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {squareConnected ? (
+              <p className="inline-flex h-10 items-center rounded-lg bg-teal-50 px-3 text-sm font-medium text-teal-900">
+                Square connected
+              </p>
+            ) : null}
+            <a
+              href="/api/square/connect"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 hover:bg-stone-50"
+            >
+              Connect Square
+            </a>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900"
+            >
+              Add booking
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
+          {squareBanner ? (
+            <div
+              className={
+                squareBanner.tone === "ok"
+                  ? "rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"
+                  : "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+              }
+            >
+              {squareBanner.message}
+            </div>
+          ) : null}
           {configured ? null : (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               <p className="font-medium">Supabase is not configured.</p>

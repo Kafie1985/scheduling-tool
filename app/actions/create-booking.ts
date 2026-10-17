@@ -3,6 +3,7 @@
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getServiceClient, isSupabaseConfigured } from "@/lib/supabase/admin";
+import { syncSquareCustomer, type SquareSyncStatus } from "@/lib/square/connection";
 import { denverLocalToIso } from "@/lib/time";
 import type { CreateBookingResult } from "@/lib/types";
 
@@ -114,6 +115,7 @@ export async function createBooking(formData: FormData): Promise<CreateBookingRe
     price: draft.price,
   };
 
+  let customerId: string;
   try {
     const lookup = await supabase
       .from("customers")
@@ -145,9 +147,11 @@ export async function createBooking(formData: FormData): Promise<CreateBookingRe
       if (inserted.error) {
         return { ok: false, error: friendlyError(inserted.error.message) };
       }
+      customerId = match.id;
     } else {
       const created = await insertCustomerWithBooking(supabase, draft, bookingRow);
       if (!created.ok) return created;
+      customerId = created.customerId;
     }
   } catch (error) {
     unstable_rethrow(error);
@@ -157,9 +161,29 @@ export async function createBooking(formData: FormData): Promise<CreateBookingRe
     };
   }
 
+  let squareStatus: SquareSyncStatus = "failed";
+  try {
+    squareStatus = await syncSquareCustomer({
+      customerId,
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone,
+    });
+  } catch (error) {
+    unstable_rethrow(error);
+    squareStatus = "failed";
+  }
+  const notice = squareNotice(squareStatus);
+
   revalidatePath("/");
   revalidatePath("/dashboard");
-  return { ok: true };
+  return notice ? { ok: true, notice } : { ok: true };
+}
+
+function squareNotice(status: SquareSyncStatus): string | undefined {
+  if (status === "skipped") return "Booking saved. Square was skipped.";
+  if (status === "failed") return "Booking saved. Square could not be updated.";
+  return undefined;
 }
 
 type BookingInsert = {
@@ -174,7 +198,7 @@ async function insertCustomerWithBooking(
   supabase: NonNullable<ReturnType<typeof getServiceClient>>,
   draft: BookingDraft,
   bookingRow: BookingInsert,
-): Promise<CreateBookingResult> {
+): Promise<{ ok: true; customerId: string } | { ok: false; error: string }> {
   // Customer and booking go in one request. PostgREST commits that pair
   // in a single Postgres transaction, so a rejected booking does not leave
   // a new customer behind.
@@ -189,9 +213,11 @@ async function insertCustomerWithBooking(
     .select("id")
     .single();
 
-  if (!nested.error) return { ok: true };
+  if (!nested.error && nested.data && typeof nested.data.id === "string") {
+    return { ok: true, customerId: nested.data.id };
+  }
 
-  const message = nested.error.message ?? "";
+  const message = nested.error?.message ?? "";
   const relationshipMissing = /could not find|relationship|schema cache/i.test(message);
   if (!relationshipMissing) {
     return { ok: false, error: friendlyError(message || "Could not save the booking.") };
@@ -225,5 +251,5 @@ async function insertCustomerWithBooking(
     return { ok: false, error: friendlyError(booking.error.message) };
   }
 
-  return { ok: true };
+  return { ok: true, customerId: customer.data.id };
 }
