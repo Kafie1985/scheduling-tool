@@ -15,6 +15,7 @@ export function AddBookingModal({
   onClose: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [times] = useState(() => defaultRange());
 
@@ -35,12 +36,16 @@ export function AddBookingModal({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!configured || pending) return;
+    if (!configured || pending || notice) return;
     const formData = new FormData(event.currentTarget);
     setError(null);
     startTransition(async () => {
       const result = await createBooking(formData);
       if (result.ok) {
+        if (result.notice) {
+          setNotice(result.notice);
+          return;
+        }
         onClose();
         return;
       }
@@ -143,6 +148,11 @@ export function AddBookingModal({
               SUPABASE_SERVICE_ROLE_KEY are set in .env.local.
             </p>
           )}
+          {notice ? (
+            <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-950">
+              {notice}
+            </p>
+          ) : null}
           {error ? (
             <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
               {error}
@@ -156,15 +166,17 @@ export function AddBookingModal({
               disabled={pending}
               className="rounded-lg px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100 disabled:opacity-50"
             >
-              Cancel
+              {notice ? "Done" : "Cancel"}
             </button>
-            <button
-              type="submit"
-              disabled={!configured || pending}
-              className="rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:bg-stone-300"
-            >
-              {pending ? "Saving..." : "Save booking"}
-            </button>
+            {notice ? null : (
+              <button
+                type="submit"
+                disabled={!configured || pending}
+                className="rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+              >
+                {pending ? "Saving..." : "Save booking"}
+              </button>
+            )}
           </div>
         </form>
       </div>

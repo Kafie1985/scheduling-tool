@@ -26,5 +26,5 @@ export type DashboardData = {
 };
 
 export type CreateBookingResult =
-  | { ok: true }
+  | { ok: true; notice?: string }
   | { ok: false; error: string };
